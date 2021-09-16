@@ -1,0 +1,60 @@
+version: '3'
+
+# uncomment for windows machine
+#volumes:
+#  cassandra_data:
+
+
+services:
+
+  cassandra:
+    image: cassandra:3.11
+    ports:
+     # CQL ports (native_transport_port)
+     - "9042:9042"
+     # Thrift (rpc_port)
+     - "9160:9160"
+     # Internode
+     - "7000:7000"
+     - "7001:7001"
+     # JMX
+     - "7199:7199"
+#    environment:
+#      # turn on thrift
+#      - CASSANDRA_START_RPC=true
+#      #- CASSANDRA_LISTEN_ADDRESS=192.168.0.103
+#      - CASSANDRA_BROADCAST_ADDRESS=192.168.0.103
+    volumes:
+     # uncomment for windows machine. Need to use named volume to successfully run on Windows. On linux can use direct folder binding
+     #- cassandra_data:/var/lib/cassandra
+     # uncomment for mac/linux machine
+     - ./data/cassandra/data:/var/lib/cassandra
+     - ./scripts/cassandra-init.sh:/cassandra-init.sh
+    command: "sh /cassandra-init.sh"
+    healthcheck:
+      test:  cqlsh -u cassandra -p cassandra "${DOCKER_IP:-localhost}" < /dev/null
+      interval: 30s
+      timeout: 60s
+      retries: 20
+
+
+  # https://hub.docker.com/r/landoop/fast-data-dev/
+  infra-kafka:
+    image: landoop/fast-data-dev:cp4.0
+    ports:
+      - "2181:2181" # Zookeeper
+      - "9092:9092" # Kafka Broker
+      - "7203:7203" # JMX
+      - "3030:3030" # UI
+      - "3031:3031" # UI
+      - "8081:8081" # Schema Registry
+      - "8082:8082" # Schema Registry
+      - "8083:8083" # Connect Distributed
+    environment:
+      ADV_HOST: ${DOCKER_IP:-localhost}
+      DISABLE: elastic,hbase,elasticsearch
+      FORWARDLOGS: 0 # Disable running 5 file source connectors that bring application logs into Kafka topics
+      RUNTESTS: 0  # Disable the (coyote) integration tests from running when container starts
+      SAMPLEDATA: 0 # Do not create position-reports topic with sample Avro records.
+      DEBUG: 1 # Print stdout and stderr of all processes to container's stdout. Useful for debugging early container exits.
+
